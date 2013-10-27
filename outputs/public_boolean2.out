@@ -1,0 +1,12 @@
+
+
+x 
+y 
+% 
+SAT
+None
+% (x,true) 
+SAT
+% (y,true) (x,true) 
+SAT
+None

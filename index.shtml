@@ -1,0 +1,478 @@
+<!--#include virtual="../header.html" -->
+
+<h1 class="title">Project 3 - Boolean Formulae and SAT</h1>
+<center>
+Due 11:59pm Tue, October 25th, 2011
+</center>
+
+<h2>Introduction</h2>
+
+For this project you will develop code for constructing
+collections of boolean formulae, and determine whether
+they can be solved (satisfied).  You will then use your 
+code to model binary numbers and solve a 3x3 magic square.
+
+</p><h2>Getting Started</h2>
+
+Download the following archive file <a href="p3.zip">p3.zip</a>
+and extract its contents.
+<p>
+
+Along with files used to make direct submissions to the
+submit server (submit.jar, <a href=".submit">.submit</a>, submit.rb), you will
+find the following project files:
+</p><ul>
+<li>Your OCaml program - <a href="boolean.ml">boolean.ml</a>
+</li><li>Public tests
+<ul>
+<li><a href="public_assoc1.ml">public_assoc1.ml</a>
+<li><a href="public_assoc2.ml">public_assoc2.ml</a>
+<li><a href="public_boolean1.ml">public_boolean1.ml</a>
+<li><a href="public_boolean2.ml">public_boolean2.ml</a>
+<li><a href="public_binary1.ml">public_binary1.ml</a>
+<li><a href="public_binary2.ml">public_binary2.ml</a>
+<li><a href="public_binary3.ml">public_binary3.ml</a>
+<li><a href="public_binary4.ml">public_binary4.ml</a>
+<li><a href="public_magic1.ml">public_magic1.ml</a>
+<li><a href="public_magic2.ml">public_magic2.ml</a>
+<li><a href="public_magic3.ml">public_magic3.ml</a>
+</ul>
+</li><li>Expected outputs for public tests 
+<ul>
+<li><a href="outputs/public_assoc1.out">public_assoc1.out</a>
+<li><a href="outputs/public_assoc2.out">public_assoc2.out</a>
+<li><a href="outputs/public_boolean1.out">public_boolean1.out</a>
+<li><a href="outputs/public_boolean2.out">public_boolean2.out</a>
+<li><a href="outputs/public_binary1.out">public_binary1.out</a>
+<li><a href="outputs/public_binary2.out">public_binary2.out</a>
+<li><a href="outputs/public_binary3.out">public_binary3.out</a>
+<li><a href="outputs/public_binary4.out">public_binary4.out</a>
+<li><a href="outputs/public_magic1.out">public_magic1.out</a>
+<li><a href="outputs/public_magic2.out">public_magic2.out</a>
+<li><a href="outputs/public_magic3.out">public_magic3.out</a>
+</ul>
+</li>
+<li>Utility code - <a href="testUtils.ml">testUtils.ml</a>
+<li>Test Script - <a href="goTest.rb">goTest.rb</a>
+<li>New Test Cases - <a href="myTest.ml">myTest.ml</a>
+</li></ul>
+
+Some notes on public tests:
+<ul>
+<li> Lines in expected output beginning with % are comments and are ignored by the submit server tests.  They typically display examples of boolean formulae where multipe answers are possible.
+<li> The public tests provided sometimes use one project function to test
+a different project function.  For instance, in public_binary3.ml 
+we use <tt>subst</tt> and <tt>eval</tt> to test the <tt>eq</tt> function.  
+On the submit server the tests will be using our own functions 
+instead.  So it may be possible for you to pass public_binary3.ml
+on the submit server even if you have not yet implemented <tt>subst</tt> and <tt>eval</tt>.
+<li> Make sure you produce an answer in the correct format.
+Distinguish between bool <tt>true</tt>, a formula <tt>(True)</tt>, and
+a vector of formulae <tt>[True]</tt>.
+</ul>
+
+
+<h2>Project Goals</h2>
+
+<p>
+For this project, you will develop some functions for working with
+boolean formulae, defined by the following OCaml data type:
+
+<pre>
+type formula =
+    False
+  | True
+  | Var of char
+  | And of formula * formula
+  | Or of formula * formula
+  | Not of formula
+  | Forall of char * formula
+  | Exists of char * formula
+</pre>
+
+<p>
+Here <tt>False</tt> and <tt>True</tt> represent the obvious values.
+<tt>Var c</tt> represents the boolean variable with name <tt>c</tt>
+(notice that variable names can only be characters.  The constructors
+<tt>And</tt>, <tt>Or</tt>, and <tt>Not</tt> represent boolean
+conjunction, disjunction, and negation, respectively.  For example,
+the mathematical formula <i>(a or b) and c</i> would be represented by
+the OCaml value <tt>And(Or(Var 'a', Var 'b'), Var 'c')</tt>.  (We'll
+explain <tt>Forall</tt> and <tt>Exists</tt> in a moment.)
+
+<p>
+We will use <i>associative lists</i>, which are just lists of pairs,
+to assign truth values to variables:
+
+<pre>
+  type assignment = (char * bool) list
+</pre>
+
+<p>
+Here if an <tt>assignment</tt> contains the pair <i>(c,b)</i>, then
+that assignment gives the variable represented by the character
+<i>c</i> the value <i>b</i>.  When working with the type
+<tt>assignment</tt>, you will find the functions <tt>List.assoc</tt>,
+<tt>List.mem_assoc</tt>, and related functions helpful.  See the OCaml
+library documentation for more details.
+
+<p>
+You may assume for purposes of this project that whenever you work
+with an <tt>assignment</tt> for boolean expressions, all listed 
+variables are distinct (i.e., you don't need to worry about shadowing names).
+
+<p>
+The last two kinds of <tt>formula</tt>, <tt>Forall</tt> and
+<tt>Exists</tt>, represent the similarly named quantifiers.  The boolean
+formula <tt>Forall(x, f)</tt> is true if <tt>f</tt> is true under all
+assignments to <tt>x</tt>, i.e., if <tt>f</tt> is true when
+<tt>x=true</tt> and when <tt>x=false</tt>.  The boolean formula
+<tt>Exists(x, f)</tt> is true if <tt>f</tt> is true either for
+<tt>x=true</tt> or <tt>x=false</tt>.  For example, the formula
+<tt>Forall('x', Or(Var 'x', Var 'y'))</tt> is true under the
+assignment <tt>[('y', true)]</tt> and false under the assignment
+<tt>[('y', false)]</tt>.
+
+<h2>Part 1:  Associative Lists </h2>
+
+We begin with writing some additional functions for associative lists.
+For this section the multiple associations (bindings) may exist
+for the same key (symbol).  E.g., [('a',true);('a',false)]
+
+<ul>
+<li> <tt>count_assoc : assignment char -> int</tt>.  This function
+counts the number of times an association appears for some 
+symbol x in the assignment.
+For instance, <tt> count_assoc 'a' [('a',true);('a',false)] 'a'</tt> returns 2.
+<p>
+
+<li> <tt>remove_assoc_all: assignment char -> assignment</tt>.  This function
+removes all associations for some symbol x in the assignment.
+For instance, <tt> remove_assoc_all [('a',true);('b',true);('a',false)] 'a'</tt> returns [('b',true)].
+<p>
+
+<li> <tt>change_assoc_all: assignment char bool -> assignment</tt>.  
+This function changes all associations for some symbol x in 
+the assignment to the specified boolean value.
+For instance, <tt> change_assoc_all [('a',true);('a',false)] 'a' true</tt> returns [('a',true);('a',true)].
+<p>
+
+<li> <tt>assoc_last: assignment char -> bool</tt>.  This function
+returns the value bound to the last association for some symbol x 
+in the assignment.
+For instance, <tt> assoc_last [('a',true);('a',false)] 'a'</tt> returns 
+false.
+<p>
+
+</ul>
+
+<h2>Part 2:  Boolean Formulae</h2>
+
+Write the following functions that work with boolean formulae:
+
+<ul>
+
+<li> <tt>eval : formula -> assignment -> bool</tt>.  This function
+evaluates the boolean formula on the given variable assignment and
+returns the result as an OCaml <tt>bool</tt>.  For example, given the
+OCaml value <tt>And(Or(Var 'x', Var 'y'), Var 'z')</tt> and the
+assignment <tt>[('x', true); ('y', false); ('z', true)]</tt>, the
+<tt>eval</tt> function should return <tt>true</tt>.  Your function can
+assume that all of the <tt>formula</tt>'s free variables are
+specified in the <tt>assignment</tt>.
+
+<br><br>
+
+<li> <tt>vars_of : formula -> char list</tt>.  This function takes a
+formula and returns a list of the names of the <i>free variables</i>
+of the formula.  The free variables are those that are not bound by a
+quantifier.  For example, for <tt>Exists('x', Or(Var 'x', Var
+'y'))</tt>, you should return a list containing only <tt>'y'</tt>.
+The list should contain no duplicates.  There is no requirement as to
+the order that the variable names must appear in the list.
+
+<br><br>
+
+<li> <tt>sat : formula -> assignment option</tt>.  This function
+returns <tt>Some a</tt>, where <tt>a</tt> is a satisfying assignment,
+if the formula is satisfiable, or <tt>None</tt> otherwise.  For
+example, <tt>sat (Or(Var 'x', Var 'y'))</tt> could return three
+things: <tt>Some ([('x', true); ('y', false)])</tt>, <tt>Some ([('x',
+false); ('y', true)])</tt>, or <tt>Some ([('x', true); ('y',
+true)])</tt>, whereas <tt>sat (And(Var 'x', Not (Var 'x')))</tt> would
+return <tt>None</tt>.  If more than one assignment is possible, you
+may return any assignment.  You might find the <tt>vars_of</tt>
+function handy here.  Do not worry about the efficiency of this function.
+
+</ul>
+
+<h2>Part 3: Binary Arithmetic with SAT</h2>
+
+<p>
+The <tt>sat</tt> function you wrote above is likely not very
+efficient; given a formula with <i>n</i> free variables, it probably
+always runs in <i>O(2^n)</i> time.  That's fine for this project, and
+that's the worst case bound, but there has been significant progress
+in recent years in developing SAT solvers that can test for
+satisfiability much more efficiently in the "common case."  One of the
+major applications of SAT solvers is in reasoning about the kinds of
+arithmetic hardware does, which is all carried out by bit twiddling.
+In this project, you will implement a model of hardware arithmetic,
+and you can then use your (inefficient) <tt>sat</tt> function to
+compute some interesting stuff.
+
+<p>
+The functions for this part will work with the following type:
+
+<pre>
+  type vec = formula list
+</pre>
+
+<p>
+A <tt>vec</tt> is a list of boolean formulae representing the bits of
+a machine word, with the low order bit at the head of the list.  For
+example, we would represent the number 13 as <tt>x = [True; False;
+True; True]</tt>.  Zero could be represented at <tt>[]</tt>, or as
+<tt>[False]</tt>, or as <tt>[False; False]</tt>, etc.
+We could represent an unknown 4-bit number as <tt>y
+= [Var 'a'; Var 'b'; Var 'c'; Var 'd']</tt>.  (We'll see the use of
+this just below.)  Below when we refer to <tt>x</tt> and <tt>y</tt>,
+we'll mean these two <tt>vec</tt>s.  For this problem, we will only
+work with non-negative numbers.
+
+<p>
+Write the following functions for type <tt>vec</tt>.  For the first
+few problems, you can just think of <tt>vec</tt>'s as lists of
+<tt>True</tt>s and <tt>False</tt>s.
+
+<ul>
+
+<li><tt>int_of_vec : vec -> int</tt>.  This function takes a
+<tt>vec</tt> composed solely of <tt>True</tt>s and <tt>False</tt>s and
+returns the integer equivalent.  For example, <tt>int_of_vec [False;
+True]</tt> should return 2.  You don't need to handle the case when
+some element of <tt>vec</tt> is neither <tt>True</tt> nor
+<tt>False</tt>.
+
+<br><br>
+
+<li><tt>vec_of_int : int -> vec</tt>.  This function takes a non-negative
+integer and returns the corresponding <tt>vec</tt>.  For example,
+<tt>vec 13</tt> should return <tt>x</tt> above.  <tt>vec_of_int 0</tt>
+should return <tt>[]</tt>. <i>Hint:  You'll
+probably want to use the infix operators <tt>mod</tt> and <tt>/</tt>.</i>
+
+<br><br>
+
+<li><tt>subst : assignment -> vec -> vec</tt>.  This function
+reduces the <tt>vec</tt> argument to a <tt>vec</tt> of all
+<tt>True</tt>s and <tt>False</tt>s by replacing the variables in the
+<tt>vec</tt> according to the <tt>assignment</tt> and then evaluating
+each bit.  For example, <tt>subst [('x', true); ('y', false)] [Var
+'x'; True; And(Var 'y', True)]</tt> returns <tt>[True; True; False]</tt>.
+
+<br><br>
+
+<li><tt>eq : vec -> vec -> formula</tt>.  This function returns a
+formula representing whether the two bit vectors are equal.  For
+example, <tt>eq [Var 'a'] [True]</tt> could return <tt>Or(And(Var 'a',
+True), And(Not (Var 'a'), Not True))</tt>.  (In other words, the two
+vectors are equal if either both <tt>a</tt> and <tt>True</tt> are
+true, or if both are false.)  
+You can assume for this problem that the two bit vectors have
+the same length.
+
+<br><br>
+
+<li><tt>add : vec -> vec -> vec</tt>.  This function returns a new
+<tt>vec</tt> representing the sum of the two vectors.  You may assume
+the two bit vectors have the same length.  Since there may
+be a carry out of the last bit, the resulting vector will have one
+more element than the input vectors.  You'll have to figure out the
+formula for addition yourself. <i>Hint: You'll probably want to write
+a recursive helper function that has an extra parameter for the carry
+bit</i>.
+
+</ul>
+
+Note that for <tt>eq</tt> and <tt>add</tt>, function arguments
+may contain free variables, causing the boolean formulae returned 
+to contain free variables as well.  Fully evaluating the results 
+will require an assignment where those free variables are bound.
+
+<h2>Part 4:  Magic Squares</h2>
+
+<p>
+A <i>magic square</i> is an n-by-n grid of the numbers 1 through n^2
+such that every number appears exactly once and the sum of each row,
+column, and diagonal is the same.  For example, here is a 3x3 magic
+square:
+
+<center>
+<table border=1>
+<tr><td>8<td>1<td>6
+<tr><td>3<td>5<td>7
+<tr><td>4<td>9<td>2
+</table>
+</center>
+
+<p>
+In this part, you will write a function that solves the magic squares
+problem, using the machinery you developed in parts 1 and 2.  In
+particular, what we will do is "reduce" the problem of finding a
+solution to the magic squares problem to a boolean formula.  We can
+then use the <tt>sat</tt> function to actually find a solution.  Here
+are the functions you should write:
+
+<ul>
+<li><tt>pad : vec -> int -> vec</tt>.  The function <tt>pad v i</tt>
+returns a new <tt>vec</tt> that is equal to <tt>v</tt> but whose
+length is the greater of <tt>i</tt> and the length of <tt>v</tt>.
+I.e., it pads <tt>v</tt>, if necessary, with extra <tt>False</tt>s so
+that it has <tt>i</tt> bits.
+<br><br>
+
+<li><tt>add_three : vec -> vec -> vec -> vec</tt>.  This function
+returns a new vector that represents the sum of the three input
+vectors.  You can assume the three <tt>vec</tt>s have the same length.
+<br><br>
+
+<li><tt>is_digit : vec -> formula</tt>.  The input is a <tt>vec</tt>
+of length 4 (i.e., exactly 4 boolean formulae).  This function returns
+a formula that is true if and only if the <tt>vec</tt> is greater than
+or equal to 1 and less than or equal to 9.
+<br><br>
+
+<li><tt>disjoint : vec list -> formula</tt>.  This function takes a
+list of <tt>vec</tt>s and returns a formula representing whether all
+the <tt>vec</tt>s are different from each other.
+<br><br>
+
+<li><tt>is_magic : vec list -> formula</tt>.  This function takes a
+list of exactly nine <tt>vec</tt>s and returns a formula representing
+whether the list is a magic square.  A list <tt>[v1; v2; v3; v4; v5;
+v6; v7; v8; v9]</tt> represents the following square:
+
+<center>
+<table border=1>
+<tr><td>v1<td>v2<td>v3
+<tr><td>v4<td>v5<td>v6
+<tr><td>v7<td>v8<td>v9
+</table>
+</center>
+
+You can assume that the <tt>vec</tt>s in the list consist of exactly
+four boolean formulae each, i.e., they are four-bit numbers.
+
+<p>
+You can try out your <tt>is_magic</tt> function by seeing if it can
+decide that the square above is magic.  You can also try replacing one
+or two entries by variables, and then seeing if your code correctly
+finds the right numbers to fill in.  However, you'll have to wait a
+long, long time if you try making a lot of the entries in the magic
+square variables, since your <tt>sat</tt> function probably takes
+exponential time.
+
+</ul>
+
+<h2>What to Submit</h2>
+
+<p>
+Write your solutions to this project in a file <tt>boolean.ml</tt>.
+You can get a (very minimal) skeleton for this project <a
+href="boolean.ml">here</a>.
+Submit your <tt>boolean.ml</tt> file under <b>Project 3</b> on the
+submit sever.
+<p>
+
+<h2>Submission</h2>
+
+You can submit your project in two ways:
+
+<ul>
+<li>
+Submit your boolean.ml file directly to the 
+<a href="http://submit.cs.umd.edu/">submit server</a> 
+by clicking on the submit link in the column "web submission".
+
+<p>
+<img src="submit1.jpg">
+</p><p>
+
+Next, use the submit dialog to submit your boolean.ml file directly.
+
+
+</p><p>
+<img src="submit2.jpg">
+</p><p>
+
+Select your file using the "Browse" button, 
+then press the "Submit project!" button.  
+You <b>do not</b> need to put it in a Jar or Zip file.
+Some students have mentioned problems 
+with using Internet Explorer, because 
+submissions being extracted in directories
+(e.g., "C:\My Documents\330\boolean.ml") where
+the submit server could not find them.  The
+problems went away when switching to the 
+Mozilla Firefox browser.
+
+</p><p>
+</p></li><li>
+
+</li><li>
+Submit directly by executing a Java program on a computer
+with Java and network access.  Use the submit.jar file 
+from the archive <a href="p3.zip">p3.zip</a>, 
+To submit, go to the directory containing your project, then either
+execute submit.rb or type the following command directly:
+<p> 
+
+</p><center>
+
+<tt>
+java -jar submit.jar
+</tt>
+</center>
+<p>
+
+You will be asked to enter your class account and password, then
+all files in the directory (and its subdirectories) will be
+put in a jar file and submitted to the submit server.  
+If your submission is successful you will see the message:
+</p><p> 
+
+</p><center>
+<tt>
+Successful submission #<submission_number> received for project 3
+</submission_number></tt>
+</center>
+<p>
+
+</p></li></ul>
+
+<h2>Academic Integrity</h2>
+
+<p>
+The Campus Senate has adopted a policy asking students to include the
+following statement on each assignment in every course: "I pledge on
+my honor that I have not given or received any unauthorized assistance
+on this assignment."  Consequently your program is requested to
+contain this pledge in a comment near the top.
+
+<p>
+Please <b>carefully read</b> the academic honesty section of the
+course syllabus.  <b>Any evidence</b> of impermissible cooperation on
+projects, use of disallowed materials or resources, or unauthorized
+use of computer accounts, <b>will be submitted</b> to the Student
+Honor Council, which could result in an XF for the course, or
+suspension or expulsion from the University.  Be sure you understand
+what you are and what you are not permitted to do in regards to
+academic integrity when it comes to project assignments.  These
+policies apply to all students, and the Student Honor Council does not
+consider lack of knowledge of the policies to be a defense for
+violating them.  Full information is found in the course
+syllabus---please review it at this time.
+
+<!--#include virtual="../footer.html" -->
+
